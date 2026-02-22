@@ -253,6 +253,7 @@ def collect_observer_data(model, tokenizer, args):
             args.dataset,
             max_seq_len=args.max_seq_len,
             batch_size=args.batch_size,
+            samples=args.samples,
         )
 
         # Run forward pass

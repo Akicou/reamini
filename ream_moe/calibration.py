@@ -381,6 +381,7 @@ def build_calibration_batches(
     texts: Iterable[str] | str | List[str],
     max_seq_len: int = 512,
     batch_size: int = 4,
+    samples: int = 1000,
 ) -> Iterable[CalibrationBatch]:
     """
     Build calibration batches from texts.
@@ -393,6 +394,7 @@ def build_calibration_batches(
             - List of strings
         max_seq_len: Maximum sequence length
         batch_size: Batch size for calibration
+        samples: Number of samples to load from dataset (when using dataset name)
 
     Returns:
         Iterable of CalibrationBatch objects
@@ -402,8 +404,8 @@ def build_calibration_batches(
         >>> batches = build_calibration_batches(tokenizer, ["text1", "text2"])
         >>> # Use registered dataset
         >>> batches = build_calibration_batches(tokenizer, "c4")
-        >>> # Use combined dataset with custom samples
-        >>> batches = build_calibration_batches(tokenizer, "combined")
+        >>> # Use with custom sample count
+        >>> batches = build_calibration_batches(tokenizer, "c4", samples=500)
     """
     # Handle dataset name
     if isinstance(texts, str):
@@ -412,7 +414,7 @@ def build_calibration_batches(
             logger.warning(f"Dataset '{texts}' not found, using fallback")
             texts = _fallback_texts(1000)
         else:
-            texts = factory(samples=1000)
+            texts = factory(samples=samples)
 
     # Handle list/iterable of texts
     if isinstance(texts, list):
