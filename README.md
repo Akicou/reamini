@@ -1,21 +1,35 @@
 # REAM-MoE
 
-REAM-style Mixture-of-Experts (MoE) compression framework with pluggable adapters.
+> REAM/REAP-style Mixture-of-Experts compression framework with production-ready support for multiple model families.
 
-This repo implements a generic version of the **REAM** algorithm described in\
-“REAM: Compressing Mixture-of-Experts LLMs” and makes it easy to apply to\
-different MoE model families such as Qwen, gpt-oss, Kimi Linear, etc.
+**REAM-MoE** is a Python library for compressing Mixture-of-Experts (MoE) Large Language Models using the REAM (REAM-style expert merging) algorithm. It provides a generic, model-agnostic compression framework with adapter-based architecture for supporting multiple MoE model families.
 
 ## Features
 
-- **Adapter-based design**: a small `MoEAdapter` interface hides model-specific details.
-- **REAM core implementation**:
-  - REAP-style saliency computation.
-  - Gated similarity + pseudo-pruning grouping.
-  - Permutation-aware expert merging (Hungarian alignment).
-  - Router (gate) weight adjustment.
-- **Sequential or non-sequential merging** across MoE layers.
-- Example HuggingFace-style adapter and compression script.
+- **Adapter-based design** - Small `MoEAdapter` interface hides model-specific details
+- **REAM/REAP core implementation**:
+  - REAP-style saliency computation (router-weighted expert activation)
+  - Gated similarity + pseudo-pruning grouping
+  - Permutation-aware expert merging (Hungarian alignment)
+  - Router (gate) weight adjustment
+- **Production-ready model support** for 15+ MoE model families:
+  - Qwen (Qwen3Moe, NonUniformQwen3Moe)
+  - Llama4 (Llama4ForCausalLM)
+  - Mixtral (MixtralForCausalLM)
+  - DeepSeek (DeepseekV2ForCausalLM, DeepseekV3ForCausalLM)
+  - Kimi (KimiK2ForCausalLM)
+  - GLM (Glm4MoeForCausalLM, Glm4MoeLiteForCausalLM, GlmMoeDsaForCausalLM)
+  - Ernie (Ernie4_5_MoEForCausalLM, Ernie4_5_MoeForCausalLM)
+  - Solar (SolarOpenForCausalLM)
+  - Vaetki (VaetkiForCausalLM)
+  - MiMo (MiMoV2FlashForCausalLM)
+  - LongCat (LongcatCausalLM, LongcatForCausalLM)
+  - MiniMax (MiniMaxM2ForCausalLM)
+- **Multiple compression methods**:
+  - Expert pruning (remove low-saliency experts)
+  - Expert merging (combine similar experts)
+- **Built-in calibration datasets** (C4, code, math, writing)
+- **Auto-registration** for unknown model architectures
 
 ## Installation
 
@@ -23,68 +37,323 @@ different MoE model families such as Qwen, gpt-oss, Kimi Linear, etc.
 pip install -e .
 ```
 
-or using the `requirements.txt`:
+Or using the `requirements.txt`:
 
 ```bash
 pip install -r requirements.txt
 ```
 
-> On Windows, ensure you are in the correct virtual environment before installing.
+## Quick Start
 
-## Package layout
+### Using the CLI
 
-- `ream_moe/`
-  - `__init__.py`
-  - `adapters/`
-    - `__init__.py`
-    - `base.py` – core adapter abstractions.
-    - `hf_qwen.py` – example HuggingFace MoE adapter (skeleton).
-  - `ream.py` – REAM compressor implementation.
-  - `calibration.py` – small helpers for building calibration batches.
-- `examples/`
-  - `compress_hf_qwen.py` – example CLI for compressing a Qwen-like HF model.
+The easiest way to compress a model is using the provided CLI script:
 
-## Quick start (HuggingFace-style model)
+```bash
+python examples/compress_model.py \
+    --model Qwen/Qwen3-14B-MoE \
+    --output ./compressed_model \
+    --compression-ratio 0.25 \
+    --method prune \
+    --dataset combined
+```
 
-This is a sketch for Qwen-like models. You will need to:
-
-- Point `HFQwenMoEAdapter` to the actual MoE layer classes used by your model.
-- Implement `forward_collect_calibration` for your specific architecture.
+### Using the Python API
 
 ```python
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from ream_moe.adapters.hf_qwen import HFQwenMoEAdapter
-from ream_moe.ream import REAMCompressor, REAMConfig
-from ream_moe.calibration import build_calibration_batches
+from ream_moe import observe_model, prune_model, PruningConfig
 
-model_name = "Qwen/Qwen2.5-32B-A14B-Instruct"  # example
-tokenizer = AutoTokenizer.from_pretrained(model_name)
-model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype="torch.float16").cuda()
+# Load model
+model = AutoModelForCausalLM.from_pretrained(
+    "Qwen/Qwen3-14B-MoE",
+    device_map="auto",
+    torch_dtype="auto",
+    trust_remote_code=True,
+)
+tokenizer = AutoTokenizer.from_pretrained("Qwen/Qwen3-14B-MoE", trust_remote_code=True)
 
-adapter = HFQwenMoEAdapter(model, device="cuda")
-cfg = REAMConfig(target_ratio=0.75, group_size=16, sequential_merging=True)
-ream = REAMCompressor(adapter, cfg)
+# Collect activation statistics on calibration data
+observer_data = observe_model(
+    model,
+    calibration_input_ids,
+    calibration_attention_mask,
+)
 
-calib_texts = [...]  # your C4 / math / code mix
-calib_batches = build_calibration_batches(tokenizer, calib_texts, max_seq_len=512, batch_size=4)
+# Prune 25% of experts
+config = PruningConfig(compression_ratio=0.25)
+retained_counts = prune_model(model, observer_data, config)
 
-ream.compress(calib_batches)
-model.save_pretrained("compressed-model")
-tokenizer.save_pretrained("compressed-model")
+# Save compressed model
+model.save_pretrained("./compressed_model")
+tokenizer.save_pretrained("./compressed_model")
 ```
 
-## Extending to new model families
+### Using Expert Merging
 
-To support a new MoE architecture (e.g., gpt-oss, Kimi Linear):
+```python
+from ream_moe import observe_model, merge_model, MergeConfig
 
-1. Create a new adapter in `ream_moe/adapters/` subclassing `MoEAdapter`.
-2. Implement:
-   - `moe_layers`, `experts_in_layer`, `top_k`.
-   - `forward_collect_calibration` (hooks or custom MoE wrapper).
-   - `get_expert_weights`, `set_expert_weights`.
-   - `get_router_weights`, `set_router_weights`, `router_expert_axis`.
-   - `rebuild_caches` (if needed).
-3. Use the same `REAMCompressor` without changing the core algorithm.
+# ... load model and collect observer_data ...
 
-See `ream_moe/adapters/base.py` and `ream_moe/adapters/hf_qwen.py` for guidance.
+# Merge experts to keep 75% (25% compression)
+config = MergeConfig(target_ratio=0.75)
+retained_counts = merge_model(model, observer_data, config)
+```
 
+## Supported Models
+
+| Model Family | Model Class | Fused Experts | Notes |
+|-------------|-------------|---------------|-------|
+| Qwen3 MoE | `Qwen3MoeForCausalLM` | No | Standard Qwen MoE |
+| Qwen3 NonUniform | `NonUniformQwen3MoeForCausalLM` | No | Non-uniform expert allocation |
+| Llama4 | `Llama4ForCausalLM` | Yes | Fused gate_up_proj |
+| Mixtral | `MixtralForCausalLM` | No | Uses w1/w2/w3 naming |
+| DeepSeek V2 | `DeepseekV2ForCausalLM` | No | 160 experts, top_k=6 |
+| DeepSeek V3 | `DeepseekV3ForCausalLM` | No | 256 experts, MLA attention |
+| Kimi K2 | `KimiK2ForCausalLM` | No | DeepSeek V3 based |
+| GLM-4 | `Glm4MoeForCausalLM` | No | 64 routed experts |
+| GLM-4.7 Flash | `Glm4MoeLiteForCausalLM` | Yes | Layer 0 dense, 1-46 MoE |
+| GLM-5 | `GlmMoeDsaForCausalLM` | No | Hybrid routed + shared |
+| Ernie 4.5 | `Ernie4_5_MoeForCausalLM` | No | Baidu MoE architecture |
+| Solar | `SolarOpenForCausalLM` | No | |
+| MiMo V2 | `MiMoV2FlashForCausalLM` | No | 309B parameter model |
+| LongCat | `LongcatCausalLM` | No | 512 real + 256 zero experts |
+| MiniMax M2.5 | `MiniMaxM2ForCausalLM` | No | Uses w1/w2/w3 naming |
+
+## Calibration Datasets
+
+The following built-in calibration datasets are available:
+
+| Dataset | Description | Use For |
+|---------|-------------|---------|
+| `c4` | General web text (C4 corpus) | General-purpose compression |
+| `code` | Code instruction dataset | Code-focused models |
+| `math` | Math instruction dataset | Math/reasoning models |
+| `writing` | Creative writing prompts | Creative writing models |
+| `combined` | Mix of all categories | Balanced compression |
+
+## CLI Options
+
+```
+usage: compress_model.py [-h] --model MODEL --output OUTPUT
+                          [--method {prune,merge}]
+                          [--compression-ratio COMPRESSION_RATIO]
+                          [--target-ratio TARGET_RATIO]
+                          [--n-experts N_EXPERTS]
+                          [--dataset DATASET] [--samples SAMPLES]
+                          [--max-seq-len MAX_SEQ_LEN]
+                          [--batch-size BATCH_SIZE]
+                          [--max-tokens MAX_TOKENS]
+                          [--device DEVICE]
+                          [--torch-dtype {auto,float32,float16,bfloat16}]
+                          [--renormalize-router] [--verify-only]
+                          [--skip-verification]
+                          [--preserve-super-experts]
+                          [--seed SEED]
+
+options:
+  -h, --help            show this help message and exit
+  --model MODEL         Model name or path (HuggingFace format)
+  --output OUTPUT       Output directory for compressed model
+  --method {prune,merge}  Compression method
+  --compression-ratio COMPRESSION_RATIO
+                        Fraction of experts to remove (default: 0.25)
+  --target-ratio TARGET_RATIO
+                        For merging: fraction of experts to KEEP
+  --n-experts N_EXPERTS  Exact number of experts to prune
+  --dataset DATASET     Calibration dataset
+  --samples SAMPLES      Number of samples for calibration (default: 1000)
+  --max-seq-len MAX_SEQ_LEN
+                        Maximum sequence length (default: 512)
+  --batch-size BATCH_SIZE
+                        Batch size for calibration (default: 4)
+  --max-tokens MAX_TOKENS
+                        Maximum tokens per layer (default: 1048576)
+  --device DEVICE       Device to use (default: cuda if available)
+  --torch-dtype {auto,float32,float16,bfloat16}
+                        Torch dtype (default: auto)
+  --renormalize-router  Renormalize router weights after top-k
+  --verify-only         Only verify model config
+  --skip-verification   Skip model verification
+  --preserve-super-experts
+                        Preserve high-activation experts
+  --seed SEED           Random seed (default: 42)
+```
+
+## Advanced Usage
+
+### Verifying Model Configuration
+
+Before compression, verify that your model is properly supported:
+
+```python
+from ream_moe import verify_model_config, print_verification_result
+
+result = verify_model_config("Qwen/Qwen3-14B-MoE")
+print_verification_result(result)
+```
+
+### Listing Supported Models
+
+```python
+from ream_moe import list_supported_models
+
+for model_class in list_supported_models():
+    print(model_class)
+```
+
+### Custom Calibration Data
+
+```python
+from ream_moe.calibration import build_calibration_batches
+
+# Use your own texts
+my_texts = ["Your text here...", "More text..."]
+batches = build_calibration_batches(
+    tokenizer,
+    my_texts,
+    max_seq_len=512,
+    batch_size=4,
+)
+
+# Or use a registered dataset
+batches = build_calibration_batches(tokenizer, "c4")
+```
+
+### Preserving Super Experts
+
+To prevent pruning of unusually high-activation experts:
+
+```python
+config = PruningConfig(
+    compression_ratio=0.25,
+    preserve_super_experts=True,
+)
+```
+
+## Model Configuration
+
+Each model family requires specific configuration stored in `MODEL_ATTRS`:
+
+```python
+MODEL_ATTRS = {
+    "Qwen3MoeForCausalLM": {
+        "moe_block": "mlp",              # MoE block attribute in decoder layers
+        "gate_proj": "gate_proj",        # Gate projection name
+        "up_proj": "up_proj",            # Up projection name
+        "down_proj": "down_proj",        # Down projection name
+        "experts": "experts",            # Experts container
+        "fused": False,                  # Whether experts use fused projections
+        "router": "gate",                # Router/gate attribute
+        "num_experts": "num_experts",    # Config attribute for expert count
+        "num_experts_per_tok": "num_experts_per_tok",  # Config for top-k
+    },
+    # ... more models
+}
+```
+
+## Auto-Registration
+
+For models not explicitly supported, REAM-MoE can attempt to auto-detect configuration:
+
+```python
+from ream_moe import ensure_model_registered
+
+model = AutoModelForCausalLM.from_pretrained("unknown-moe-model")
+success = ensure_model_registered(model)
+
+if success:
+    print("Model auto-registered successfully!")
+else:
+    print("Auto-registration failed, please add to MODEL_ATTRS manually")
+```
+
+## Algorithm Details
+
+### REAP Saliency
+
+Each expert's importance is computed as:
+
+```
+S[i] = mean_{tokens routed to i} ||h_i(x)|| * p_i(x)
+```
+
+Where:
+- `h_i(x)` = expert output hidden states
+- `p_i(x)` = routing probabilities
+- `||·||` = L2 norm
+
+### Expert Grouping
+
+1. Select centroid experts (highest saliency)
+2. For each centroid, group nearby experts using gated similarity
+3. Most low-saliency experts remain singletons (pseudo-pruning)
+
+### Merging
+
+1. For each group, align expert weights using Hungarian algorithm
+2. Merge with saliency-weighted averaging
+3. Update router to only output centroids
+
+## Project Structure
+
+```
+ream-moe/
+├── ream_moe/
+│   ├── __init__.py              # Public API exports
+│   ├── ream.py                  # Core REAM compressor
+│   ├── calibration.py           # Dataset registry and calibration
+│   ├── observer.py              # Activation collection
+│   ├── prune.py                 # Expert pruning
+│   ├── merge.py                 # Expert merging
+│   ├── model_attr_configs.py    # MODEL_ATTRS registry
+│   ├── observer_configs.py      # Observer config registry
+│   └── model_utils.py           # Helper functions
+├── examples/
+│   └── compress_model.py        # CLI script
+├── pyproject.toml               # Package configuration
+├── requirements.txt             # Dependencies
+└── README.md
+```
+
+## Contributing
+
+To add support for a new model family:
+
+1. Add model configuration to `model_attr_configs.py`:
+
+```python
+MODEL_ATTRS["YourMoEModelForCausalLM"] = {
+    "moe_block": "mlp",           # or "block_sparse_moe", etc.
+    "gate_proj": "gate_proj",
+    "up_proj": "up_proj",
+    "down_proj": "down_proj",
+    "experts": "experts",
+    "fused": False,
+    "router": "gate",
+    "num_experts": "num_experts",
+    "num_experts_per_tok": "num_experts_per_tok",
+}
+```
+
+2. Add observer config to `observer_configs.py`:
+
+```python
+OBSERVER_CONFIG_REGISTRY["YourMoEModelForCausalLM"] = type(
+    "YourMoEObserverConfig",
+    (ObserverHookConfig,),
+    {"module_class_name_to_hook_regex": "YourMoEBlock"},
+)
+```
+
+3. Test with `--verify-only` first!
+
+## License
+
+MIT
+
+## References
+
+- REAM Paper: "REAM: Compressing Mixture-of-Experts LLMs"
+- Based on insights from [Cerebras Research/reap](https://github.com/CerebrasResearch/reap)

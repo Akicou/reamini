@@ -1,0 +1,92 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+pip-delete-this-directory.txt
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Vibecoding settings (claude, etc)
+.claude/
+.claude-*
+*vibecoding*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Model files (large)
+*.bin
+*.safetensors
+*.pt
+*.pth
+*.ckpt
+
+# Logs
+*.log
+logs/
+
+# Data
+data/
+datasets/
+
+# Outputs
+outputs/
+results/
+compressed_models/
+
+# Temporary files
+tmp/
+temp/
+*.tmp
