@@ -11,7 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 
 import torch
-from transformers import AutoModelForVision2Seq, AutoTokenizer
+from transformers import AutoModel, AutoTokenizer
 
 MODEL_NAME = "moonshotai/Kimi-VL-A3B-Thinking-2506"
 
@@ -21,8 +21,8 @@ print("=" * 70)
 
 print(f"\nLoading model: {MODEL_NAME}")
 
-# Load model with GPU
-model = AutoModelForVision2Seq.from_pretrained(
+# Load model with GPU - use AutoModel as per config.json auto_map
+model = AutoModel.from_pretrained(
     MODEL_NAME,
     torch_dtype="auto",
     device_map="auto",  # Use GPU
