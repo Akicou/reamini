@@ -57,11 +57,9 @@ class LayerObserverState:
             self.router_logits = torch.cat(self.router_logits, dim=0).to(device)
 
         if self.expert_outputs:
-            # Stack along token dimension
-            stacked = []
-            for outputs_list in self.expert_outputs:
-                stacked.append(torch.stack(outputs_list, dim=0))
-            self.expert_outputs = torch.stack(stacked, dim=1).to(device)
+            # Concatenate along token dimension
+            # expert_outputs is a list of tensors, each with shape [num_experts, num_tokens, hidden_dim]
+            self.expert_outputs = torch.cat(self.expert_outputs, dim=1).to(device)
 
         # Compute final statistics
         if self.router_logits is not None:
