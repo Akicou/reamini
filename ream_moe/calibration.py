@@ -277,20 +277,24 @@ def _load_writing(
 
 @DatasetRegistry.register("combined")
 def _load_combined(
-    samples_per_category: int = 250,
+    samples: int = 1000,
+    samples_per_category: int | None = None,
     streaming: bool = True,
 ) -> Iterable[str]:
     """
     Load a combined dataset with multiple categories.
 
     Args:
-        samples_per_category: Number of samples per category
+        samples: Total number of samples to load (across all categories)
+        samples_per_category: Number of samples per category (overrides samples if provided)
         streaming: Whether to use streaming mode
 
     Returns:
         Iterable of text samples from all categories
     """
     categories = ["c4", "code", "math", "writing"]
+    if samples_per_category is None:
+        samples_per_category = samples // len(categories)
     total_samples = samples_per_category * len(categories)
 
     def text_generator():
