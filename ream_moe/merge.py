@@ -564,8 +564,20 @@ def merge_model(
 
     # Update model config with new expert count
     if retained_counts:
-        # Get the expert count from first layer (all should be same after compression)
-        final_expert_count = list(retained_counts.values())[0]
+        # Verify all layers have the same expert count
+        unique_counts = set(retained_counts.values())
+        if len(unique_counts) > 1:
+            logger.warning(
+                f"Layers have different expert counts after merging: {retained_counts}. "
+                f"Using the most common count."
+            )
+            # Use the most common expert count
+            from collections import Counter
+            final_expert_count = Counter(retained_counts.values()).most_common(1)[0][0]
+        else:
+            final_expert_count = list(unique_counts)[0]
+
+        logger.info(f"Setting expert count to {final_expert_count} (across {len(retained_counts)} MoE layers)")
 
         # Handle Kimi-VL's nested text_config
         model_class = model.__class__.__name__
