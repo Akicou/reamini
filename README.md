@@ -3,7 +3,8 @@
 > REAM/REAP-style Mixture-of-Experts compression framework with production-ready support for multiple model families.
 
 **REAM-MoE** is a Python library for compressing Mixture-of-Experts (MoE) Large Language Models using the REAM (REAM-style expert merging) algorithm. It provides a generic, model-agnostic compression framework with adapter-based architecture for supporting multiple MoE model families.
-
+## Releases
+ - [https://huggingface.co/Akicou/Qwen3-30B-A3B-Instruct-REAMINI](Akicou/Qwen3-30B-A3B-Instruct-REAMINI)
 ## Features
 
 - **Adapter-based design** - Small `MoEAdapter` interface hides model-specific details
