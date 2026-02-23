@@ -184,7 +184,7 @@ def _load_dataset_with_timeout(
 def _load_c4(
     samples: int = 1000,
     split: str = "train",
-    streaming: bool = True,
+    streaming: bool = True,  # Unused for hardcoded, kept for compatibility
 ) -> Iterable[str]:
     """
     Load C4 (Colossal Clean Crawled Corpus) dataset.
@@ -205,7 +205,7 @@ def _load_c4(
 @DatasetRegistry.register("code")
 def _load_code(
     samples: int = 500,
-    streaming: bool = True,
+    streaming: bool = True,  # Unused for hardcoded, kept for compatibility
 ) -> Iterable[str]:
     """
     Load code instruction dataset.
@@ -225,7 +225,7 @@ def _load_code(
 @DatasetRegistry.register("math")
 def _load_math(
     samples: int = 500,
-    streaming: bool = True,
+    streaming: bool = True,  # Unused for hardcoded, kept for compatibility
 ) -> Iterable[str]:
     """
     Load math instruction dataset.
@@ -245,7 +245,7 @@ def _load_math(
 @DatasetRegistry.register("writing")
 def _load_writing(
     samples: int = 300,
-    streaming: bool = True,
+    streaming: bool = True,  # Unused for hardcoded, kept for compatibility
 ) -> Iterable[str]:
     """
     Load creative writing prompts dataset.
@@ -266,6 +266,7 @@ def _load_writing(
 def _load_hardcoded(
     samples: int = 2000,
     samples_per_category: int | None = None,
+    streaming: bool = True,
 ) -> Iterable[str]:
     """
     Load comprehensive hardcoded calibration texts.
@@ -302,7 +303,7 @@ def _load_hardcoded(
 def _load_combined(
     samples: int = 1000,
     samples_per_category: int | None = None,
-    streaming: bool = True,
+    streaming: bool = True,  # Unused for hardcoded, kept for compatibility
 ) -> Iterable[str]:
     """
     Load a combined dataset with multiple categories.
