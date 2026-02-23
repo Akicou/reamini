@@ -218,6 +218,16 @@ def _update_model_config(
     """Update model config to reflect new expert count."""
     num_experts_attr = attrs.get("num_experts", "num_experts")
 
+    # Handle special cases
+    model_class = model.__class__.__name__
+
+    # Kimi-VL has nested text_config
+    if model_class == "KimiVLForConditionalGeneration":
+        if hasattr(model.config, "text_config"):
+            if hasattr(model.config.text_config, num_experts_attr):
+                setattr(model.config.text_config, num_experts_attr, num_retained_experts)
+        return
+
     if num_experts_attr.startswith("config."):
         config_key = num_experts_attr.split(".", 1)[1]
         if hasattr(model.config, config_key):
@@ -227,9 +237,7 @@ def _update_model_config(
         if hasattr(model.config, num_experts_attr):
             setattr(model.config, num_experts_attr, num_retained_experts)
 
-    # Handle special cases
-    model_class = model.__class__.__name__
-
+    # Handle other special cases
     if model_class == "Ernie4_5_MoeForCausalLM":
         if hasattr(model.config, "moe_capacity"):
             model.config.moe_capacity = [

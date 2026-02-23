@@ -52,6 +52,12 @@ def get_moe_block(model: nn.Module, layer_idx: int) -> nn.Module:
     layers = None
     if hasattr(model, "model") and hasattr(model.model, "layers"):
         layers = model.model.layers
+    elif hasattr(model, "language_model"):
+        # Vision-language models with nested language model (e.g., Kimi-VL)
+        if hasattr(model.language_model, "model") and hasattr(model.language_model.model, "layers"):
+            layers = model.language_model.model.layers
+        elif hasattr(model.language_model, "layers"):
+            layers = model.language_model.layers
     elif hasattr(model, "layers"):
         layers = model.layers
     elif hasattr(model, "transformer") and hasattr(model.transformer, "h"):
@@ -192,6 +198,12 @@ def list_moe_layers(model: nn.Module) -> List[int]:
     layers = None
     if hasattr(model, "model") and hasattr(model.model, "layers"):
         layers = model.model.layers
+    elif hasattr(model, "language_model"):
+        # Vision-language models with nested language model (e.g., Kimi-VL)
+        if hasattr(model.language_model, "model") and hasattr(model.language_model.model, "layers"):
+            layers = model.language_model.model.layers
+        elif hasattr(model.language_model, "layers"):
+            layers = model.language_model.layers
     elif hasattr(model, "layers"):
         layers = model.layers
     elif hasattr(model, "transformer") and hasattr(model.transformer, "h"):
@@ -261,6 +273,12 @@ def _infer_model_attrs(model: nn.Module) -> Dict[str, Any]:
     layers = None
     if hasattr(model, "model") and hasattr(model.model, "layers"):
         layers = model.model.layers
+    elif hasattr(model, "language_model"):
+        # Vision-language models with nested language model (e.g., Kimi-VL)
+        if hasattr(model.language_model, "model") and hasattr(model.language_model.model, "layers"):
+            layers = model.language_model.model.layers
+        elif hasattr(model.language_model, "layers"):
+            layers = model.language_model.layers
     elif hasattr(model, "layers"):
         layers = model.layers
 
@@ -472,6 +490,13 @@ def _verify_model_structure(
         elif hasattr(model.model, "decoder"):
             if hasattr(model.model.decoder, "layers"):
                 layers = model.model.decoder.layers
+    elif hasattr(model, "language_model"):
+        # Vision-language models with nested language model (e.g., Kimi-VL)
+        if hasattr(model.language_model, "model"):
+            if hasattr(model.language_model.model, "layers"):
+                layers = model.language_model.model.layers
+        elif hasattr(model.language_model, "layers"):
+            layers = model.language_model.layers
     elif hasattr(model, "layers"):
         layers = model.layers
 

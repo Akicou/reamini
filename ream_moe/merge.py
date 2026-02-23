@@ -548,6 +548,16 @@ def merge_model(
         # Get the expert count from first layer (all should be same after compression)
         final_expert_count = list(retained_counts.values())[0]
 
+        # Handle Kimi-VL's nested text_config
+        model_class = model.__class__.__name__
+        if model_class == "KimiVLForConditionalGeneration":
+            if hasattr(model.config, "text_config"):
+                for attr_name in ["n_routed_experts", "num_experts", "num_local_experts", "moe_num_experts"]:
+                    if hasattr(model.config.text_config, attr_name):
+                        logger.info(f"Updating model.config.text_config.{attr_name} = {final_expert_count}")
+                        setattr(model.config.text_config, attr_name, final_expert_count)
+                        break
+
         # Try to update various possible config attributes
         for attr_name in ["num_experts", "num_local_experts", "n_routed_experts", "moe_num_experts"]:
             if hasattr(model.config, attr_name):
