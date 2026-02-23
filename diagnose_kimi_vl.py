@@ -157,7 +157,7 @@ for layer_idx in range(min(5, len(layers))):
         print(f"\nExpert tensor details:")
         if hasattr(experts, "gate_proj"):
             gate = experts.gate_proj
-            print(f"  gate_proj: {gate.__class__.__name__")
+            print(f"  gate_proj: {gate.__class__.__name__}")
 
         if hasattr(experts, "up_proj"):
             up = experts.up_proj
