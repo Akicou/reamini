@@ -94,8 +94,11 @@ else:
 
 print(f"\nTotal layers: {len(layers)}")
 
-# Find first MoE layer
-for layer_idx in range(min(5, len(layers))):
+# Check multiple layers to find MoE
+# First few layers might be dense (first_k_dense_replace: 1)
+for layer_idx in [0, 1, 5, 10, 15, 20]:
+    if layer_idx >= len(layers):
+        break
     layer = layers[layer_idx]
 
     print(f"\n{'=' * 70}")
@@ -106,6 +109,17 @@ for layer_idx in range(min(5, len(layers))):
     if hasattr(layer, "mlp"):
         moe_block = layer.mlp
         print(f"✓ Found mlp: {moe_block.__class__.__name__}")
+
+        # Check if mlp has nested 'experts' or 'gate'
+        if hasattr(moe_block, "experts"):
+            print(f"  ✓ Has 'experts' attribute")
+        else:
+            print(f"  ✗ No 'experts' attribute")
+
+        if hasattr(moe_block, "gate"):
+            print(f"  ✓ Has 'gate' attribute")
+        else:
+            print(f"  ✗ No 'gate' attribute")
     elif hasattr(layer, "block_sparse_moe"):
         moe_block = layer.block_sparse_moe
         print(f"✓ Found block_sparse_moe: {moe_block.__class__.__name__}")
@@ -131,6 +145,15 @@ for layer_idx in range(min(5, len(layers))):
                         print(f"  {attr}: {type_name}")
             except Exception as e:
                 print(f"  {attr}: <error accessing: {e}>")
+
+    # List child modules (recursively find experts)
+    print(f"\nChild modules of MoE block:")
+    for name, child in moe_block.named_children():
+        print(f"  {name}: {child.__class__.__name__}")
+        if isinstance(child, torch.nn.Linear):
+            print(f"    -> Linear: in={child.in_features}, out={child.out_features}")
+        elif isinstance(child, torch.nn.ModuleList):
+            print(f"    -> ModuleList with {len(child)} items")
 
     # Focus on 'experts' attribute
     if hasattr(moe_block, "experts"):
@@ -226,9 +249,7 @@ for layer_idx in range(min(5, len(layers))):
                 print(f"    bias: {tuple(obj.bias.shape)}")
             # List its attributes
             print(f"    Attributes: {[a for a in dir(obj) if not a.startswith('_') and not callable(getattr(obj, a))]}")
-
-    # Only check first MoE layer
-    break
+    # Continue to check next layer
 
 # Check vision model structure
 print(f"\n{'=' * 70}")
