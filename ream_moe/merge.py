@@ -496,6 +496,10 @@ def _update_router_for_merge(
         if hasattr(inner, bias_attr) and getattr(inner, bias_attr) is not None:
             setattr(inner, bias_attr, getattr(inner, bias_attr)[idx_tensor])
 
+        # Update e_score_correction_bias if present (DeepSeek V3)
+        if hasattr(inner, "e_score_correction_bias"):
+            inner.e_score_correction_bias.data = inner.e_score_correction_bias.data[idx_tensor]
+
         # Update out_features
         if hasattr(inner, "out_features"):
             inner.out_features = len(centroid_indices)
@@ -508,10 +512,18 @@ def _update_router_for_merge(
         if getattr(router, "bias", None) is not None:
             router.bias.data = router.bias.data[idx_tensor]
 
+        # Handle e_score_correction_bias (DeepSeek V3 / MoEGate)
+        if hasattr(router, "e_score_correction_bias"):
+            router.e_score_correction_bias.data = router.e_score_correction_bias.data[idx_tensor]
+
         router.out_features = len(centroid_indices)
 
         if hasattr(router, "num_experts"):
             router.num_experts = len(centroid_indices)
+
+        # Handle n_routed_experts attribute (DeepSeek V3)
+        if hasattr(router, "n_routed_experts"):
+            router.n_routed_experts = len(centroid_indices)
 
 
 def merge_model(
