@@ -515,10 +515,11 @@ def _verify_model_structure(
 
         if hasattr(current, parts[-1]):
             experts = getattr(current, parts[-1])
-            if hasattr(experts, "__len__"):
+            # Try to get length - handle both hasattr(__len__) and direct len() call
+            try:
                 num_experts = len(experts)
                 logger.info(f"✅ Found {num_experts} experts")
-            else:
+            except TypeError:
                 errors.append(f"Experts at '{experts_path}' is not a list/array")
         else:
             errors.append(f"MoE block missing 'experts' attribute at '{experts_path}'")
