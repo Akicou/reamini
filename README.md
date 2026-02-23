@@ -206,7 +206,10 @@ for model_class in list_supported_models():
 ### Custom Calibration Data
 
 ```python
-from ream_moe.calibration import build_calibration_batches
+from ream_moe.calibration import build_calibration_batches, list_available_datasets
+
+# See available datasets
+print(list_available_datasets())  # ['c4', 'code', 'math', 'writing', 'hardcoded', 'combined']
 
 # Use your own texts
 my_texts = ["Your text here...", "More text..."]
@@ -217,9 +220,26 @@ batches = build_calibration_batches(
     batch_size=4,
 )
 
-# Or use a registered dataset
-batches = build_calibration_batches(tokenizer, "c4")
+# Or use a built-in dataset (all use hardcoded prompts to avoid OOM)
+batches = build_calibration_batches(tokenizer, "hardcoded", samples=1000)
+
+# Individual categories
+batches = build_calibration_batches(tokenizer, "code")      # Programming tasks
+batches = build_calibration_batches(tokenizer, "math")      # Math problems
+batches = build_calibration_batches(tokenizer, "writing")   # Creative prompts
+batches = build_calibration_batches(tokenizer, "c4")        # General knowledge
+
+# Combined dataset (mix of all categories)
+batches = build_calibration_batches(tokenizer, "combined", samples=2000)
 ```
+
+**Note:** All built-in datasets use comprehensive hardcoded instruction prompts to avoid OOM issues from HuggingFace dataset downloads. These prompts cover diverse domains:
+- **c4**: General knowledge, ML/AI, science, history, business
+- **code**: Python, web dev, data science, algorithms, DevOps, security
+- **math**: Algebra, calculus, geometry, statistics, probability, number theory
+- **writing**: Story prompts, descriptive writing, poetry, dialogue, reflections
+- **hardcoded**: Large combined set with all categories (recommended for best calibration)
+- **combined**: Smaller mix of all categories
 
 ### Preserving Super Experts
 

@@ -122,14 +122,14 @@ Examples:
     parser.add_argument(
         "--dataset",
         type=str,
-        default="combined",
-        help=f"Calibration dataset: {', '.join(list_available_datasets())}",
+        default="hardcoded",
+        help=f"Calibration dataset: {', '.join(list_available_datasets())} (default: hardcoded - recommended to avoid OOM)",
     )
     parser.add_argument(
         "--samples",
         type=int,
-        default=1000,
-        help="Number of samples to use for calibration",
+        default=2000,
+        help="Number of samples to use for calibration (default: 2000 for hardcoded dataset)",
     )
     parser.add_argument(
         "--max-seq-len",
