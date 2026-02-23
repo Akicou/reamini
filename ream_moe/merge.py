@@ -295,7 +295,7 @@ def _merge_groups(
 
             # Hungarian algorithm for optimal permutation
             cost = torch.cdist(ref, candidate)  # [neurons, neurons]
-            row_ind, col_ind = linear_sum_assignment(cost.cpu().numpy())
+            row_ind, col_ind = linear_sum_assignment(cost.detach().cpu().numpy())
             perm = torch.as_tensor(col_ind, device=device, dtype=torch.long)
 
             # Apply permutation and add weighted sum
