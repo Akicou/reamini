@@ -342,6 +342,22 @@ def save_model(model, tokenizer, output_dir, args, retained_counts=None):
     if retained_counts:
         final_expert_count = list(retained_counts.values())[0] if retained_counts else None
         if final_expert_count:
+            # Handle nested text_config (Kimi-VL, vision-language models)
+            if hasattr(model.config, "text_config"):
+                for attr_name in ["n_routed_experts", "num_experts", "num_local_experts"]:
+                    if hasattr(model.config.text_config, attr_name):
+                        old_val = getattr(model.config.text_config, attr_name)
+                        if old_val != final_expert_count:
+                            logger.info(f"Updating model.config.text_config.{attr_name}: {old_val} -> {final_expert_count}")
+                            setattr(model.config.text_config, attr_name, final_expert_count)
+                # Update num_experts_per_tok if needed
+                if hasattr(model.config.text_config, "num_experts_per_tok"):
+                    old_topk = model.config.text_config.num_experts_per_tok
+                    if old_topk > final_expert_count:
+                        logger.info(f"Updating model.config.text_config.num_experts_per_tok: {old_topk} -> {final_expert_count}")
+                        setattr(model.config.text_config, "num_experts_per_tok", final_expert_count)
+
+            # Update top-level config
             for attr_name in ["num_experts", "num_local_experts", "n_routed_experts", "moe_num_experts"]:
                 if hasattr(model.config, attr_name):
                     old_val = getattr(model.config, attr_name)
