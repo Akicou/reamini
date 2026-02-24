@@ -101,9 +101,15 @@ Examples:
     )
     parser.add_argument(
         "--compression-ratio",
-        type=float,
-        default=0.25,
-        help="Fraction of experts to remove (0.25 = remove 25%%, keep 75%%)",
+        type=str,
+        default="0.25",
+        help="Fraction of experts to remove (0.25 = remove 25%%, keep 75%%). Can specify multiple values separated by commas, e.g., '0.9,0.8,0.7'",
+    )
+    parser.add_argument(
+        "--compression-ratios",
+        type=str,
+        default=None,
+        help="[DEPRECATED] Use --compression-ratio with comma-separated values instead. Fraction of experts to remove (e.g., '0.9,0.8,0.7')",
     )
     parser.add_argument(
         "--target-ratio",
@@ -203,6 +209,21 @@ Examples:
     )
 
     return parser.parse_args()
+
+
+def parse_compression_ratios(args):
+    """Parse compression ratios from command line arguments.
+
+    Handles both --compression-ratio and --compression-ratios (deprecated).
+    Returns a list of float values.
+    """
+    # Use --compression-ratios if provided (deprecated), otherwise use --compression-ratio
+    ratio_str = args.compression_ratios if args.compression_ratios else args.compression_ratio
+
+    # Parse comma-separated values
+    ratios = [float(r.strip()) for r in ratio_str.split(',')]
+
+    return ratios
 
 
 def load_model_and_tokenizer(args):
@@ -391,6 +412,9 @@ def main():
     """Main entry point."""
     args = parse_args()
 
+    # Parse compression ratios
+    compression_ratios = parse_compression_ratios(args)
+
     # Set random seed
     torch.manual_seed(args.seed)
 
@@ -413,28 +437,51 @@ def main():
         logger.info("Verification complete. Exiting (--verify-only specified).")
         sys.exit(0)
 
-    # Collect observer data
+    # Collect observer data (only once)
     observer_data = collect_observer_data(model, tokenizer, args)
 
-    # Compress model
-    retained_counts = compress_model(model, observer_data, args)
+    # Process each compression ratio
+    for ratio in compression_ratios:
+        # Update args with current ratio
+        args.compression_ratio = ratio
 
-    # Save compressed model
-    save_model(model, tokenizer, args.output, args, retained_counts)
+        # Generate output path with suffix
+        base_output = Path(args.output)
+        suffix = f"-{int(ratio * 100)}"
+        output_path = base_output.with_suffix(base_output.suffix + suffix)
 
-    # Print summary
-    logger.info("=" * 70)
-    logger.info("Compression complete!")
-    logger.info(f"Original model: {args.model}")
-    logger.info(f"Compressed model: {args.output}")
-    logger.info(f"Method: {args.method}")
-    logger.info(f"Compression ratio: {args.compression_ratio:.1%}")
+        # Reload model for each compression ratio to start fresh
+        logger.info(f"\n{'=' * 70}")
+        logger.info(f"Processing compression ratio: {ratio:.1%}")
+        logger.info(f"Output path: {output_path}")
+        logger.info(f"{'=' * 70}\n")
 
-    if retained_counts:
-        avg_experts = sum(retained_counts.values()) / len(retained_counts)
-        logger.info(f"Average experts per layer: {avg_experts:.1f}")
+        model, tokenizer = load_model_and_tokenizer(args)
 
-    logger.info("=" * 70)
+        # Compress model
+        retained_counts = compress_model(model, observer_data, args)
+
+        # Save compressed model
+        save_model(model, tokenizer, str(output_path), args, retained_counts)
+
+        # Print summary for this ratio
+        logger.info("=" * 70)
+        logger.info(f"Compression complete for ratio {ratio:.1%}!")
+        logger.info(f"Original model: {args.model}")
+        logger.info(f"Compressed model: {output_path}")
+        logger.info(f"Method: {args.method}")
+        logger.info(f"Compression ratio: {ratio:.1%}")
+
+        if retained_counts:
+            avg_experts = sum(retained_counts.values()) / len(retained_counts)
+            logger.info(f"Average experts per layer: {avg_experts:.1f}")
+
+        logger.info("=" * 70)
+
+    # Print overall summary
+    if len(compression_ratios) > 1:
+        logger.info(f"\nAll {len(compression_ratios)} compression variants complete!")
+        logger.info(f"Compression ratios: {', '.join(f'{r:.1%}' for r in compression_ratios)}")
 
 
 def cli_entry():

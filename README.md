@@ -56,10 +56,19 @@ For an interactive tutorial, see the [Quickstart Notebook](examples/quickstart.i
 The easiest way to compress a model is using the provided CLI script:
 
 ```bash
+# Single compression ratio
 python examples/compress_model.py \
     --model Qwen/Qwen3-14B-MoE \
     --output ./compressed_model \
     --compression-ratio 0.25 \
+    --method prune \
+    --dataset combined
+
+# Multiple compression ratios (creates ./compressed_model-25, ./compressed_model-50, etc.)
+python examples/compress_model.py \
+    --model Qwen/Qwen3-14B-MoE \
+    --output ./compressed_model \
+    --compression-ratio '0.25,0.5,0.75' \
     --method prune \
     --dataset combined
 ```
@@ -174,7 +183,10 @@ options:
   --output OUTPUT       Output directory for compressed model
   --method {prune,merge}  Compression method
   --compression-ratio COMPRESSION_RATIO
-                        Fraction of experts to remove (default: 0.25)
+                        Fraction of experts to remove (default: 0.25).
+                        Can specify multiple values separated by commas,
+                        e.g., '0.25,0.5,0.75'. Each ratio creates a
+                        separate output with suffix -N (e.g., -25, -50, -75)
   --target-ratio TARGET_RATIO
                         For merging: fraction of experts to KEEP
   --n-experts N_EXPERTS  Exact number of experts to prune
