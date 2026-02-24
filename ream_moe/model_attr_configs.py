@@ -172,13 +172,14 @@ MODEL_ATTRS: Dict[str, Dict[str, Any]] = {
     },
 
     # GLM-5 (GlmMoeDsaForCausalLM) - Hybrid MoE with routed + shared experts
+    # Uses FUSED experts (gate_up_proj combined) + always-active shared_experts
     "GlmMoeDsaForCausalLM": {
         "moe_block": "mlp",
-        "gate_proj": "gate_proj",
-        "up_proj": "up_proj",
+        "gate_proj": "gate_up_proj",
+        "up_proj": "gate_up_proj",
         "down_proj": "down_proj",
         "experts": "experts",
-        "fused": False,
+        "fused": True,
         "router": "gate",
         "num_experts": "n_routed_experts",
         "num_experts_per_tok": "num_experts_per_tok",
