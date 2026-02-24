@@ -348,12 +348,37 @@ def _get_expert_weights(
         Stacked expert weights [num_experts, ...]
     """
     experts = moe_block.experts
-    device = "cpu" if use_cpu else experts.gate_up_proj.device if attrs.get("fused", False) else experts[0].gate_proj.weight.device
+
+    # Helper to safely move tensor, handling meta tensors
+    def safe_to_tensor(tensor, target_device):
+        """Safely move tensor to device, handling meta tensors."""
+        if tensor.device.type == "meta":
+            # For meta tensors, accessing .to() will trigger materialization
+            # This is handled by accelerate's device_map
+            try:
+                return tensor.to(target_device)
+            except NotImplementedError:
+                # If direct .to() fails, the tensor is truly meta and not materialized
+                # This happens with some accelerate offload strategies
+                # We need to force materialization through the module
+                return tensor.data.to(target_device)
+        else:
+            return tensor.to(target_device) if str(tensor.device) != str(target_device) else tensor
+
+    # Determine target device
+    if attrs.get("fused", False):
+        current_device = experts.gate_up_proj.device
+        target_device = "cpu" if use_cpu else (current_device if current_device.type != "meta" else "cuda")
+    else:
+        current_device = experts[0].gate_proj.weight.device
+        target_device = "cpu" if use_cpu else (current_device if current_device.type != "meta" else "cuda")
+
+    device = target_device
 
     if attrs.get("fused", False):
         # Fused: gate_up_proj and down_proj
-        gate_up = experts.gate_up_proj.to(device) if device != experts.gate_up_proj.device else experts.gate_up_proj  # [E, 2*I, H]
-        down = experts.down_proj.to(device) if device != experts.down_proj.device else experts.down_proj  # [E, H, I]
+        gate_up = safe_to_tensor(experts.gate_up_proj, device)
+        down = safe_to_tensor(experts.down_proj, device)
 
         num_experts = gate_up.shape[0]
         intermediate_size = down.shape[2]
@@ -378,9 +403,9 @@ def _get_expert_weights(
 
         for i in range(num_experts):
             expert = experts[i]
-            gate = getattr(expert, gate_proj).weight.flatten().to(device)
-            up = getattr(expert, up_proj).weight.flatten().to(device)
-            down = getattr(expert, down_proj).weight.flatten().to(device)
+            gate = safe_to_tensor(getattr(expert, gate_proj).weight.flatten(), device)
+            up = safe_to_tensor(getattr(expert, up_proj).weight.flatten(), device)
+            down = safe_to_tensor(getattr(expert, down_proj).weight.flatten(), device)
             weights.append(torch.cat([gate, up, down]))
 
         return torch.stack(weights, dim=0).unsqueeze(1)  # [E, 1, D]
