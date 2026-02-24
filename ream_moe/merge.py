@@ -38,6 +38,7 @@ class MergeConfig:
     group_size: int = 16  # Max experts per group (excluding centroid)
     use_gated_similarity: bool = True  # Use router+hidden similarity for grouping
     saliency_metric: str = "saliency_scores"  # Metric to use for centroid selection
+    use_cpu_for_weights: bool = False  # Process expert weights on CPU to save GPU memory
 
 
 def merge_layer(
@@ -94,7 +95,8 @@ def merge_layer(
 
     # Step 4: Merge each group
     merged_weights = _merge_groups(
-        moe_block, groups, saliency, attrs, observer_stats
+        moe_block, groups, saliency, attrs, observer_stats,
+        use_cpu_for_weights=config.use_cpu_for_weights
     )
 
     # Step 5: Update model with merged weights
@@ -247,6 +249,7 @@ def _merge_groups(
     saliency: torch.Tensor,
     attrs: Dict[str, Any],
     observer_stats: Dict[str, torch.Tensor],
+    use_cpu_for_weights: bool = False,
 ) -> torch.Tensor:
     """
     Merge each group of experts using permutation-aware averaging.
@@ -257,11 +260,12 @@ def _merge_groups(
         saliency: Saliency scores per expert
         attrs: Model attributes
         observer_stats: Observer statistics
+        use_cpu_for_weights: If True, process weights on CPU to save GPU memory
 
     Returns:
         Merged expert weights tensor
     """
-    all_weights = _get_expert_weights(moe_block, attrs)
+    all_weights = _get_expert_weights(moe_block, attrs, use_cpu=use_cpu_for_weights)
     device = all_weights.device
     merged_weights: List[torch.Tensor] = []
 
@@ -312,6 +316,7 @@ def _merge_groups(
 def _get_expert_weights(
     moe_block: nn.Module,
     attrs: Dict[str, Any],
+    use_cpu: bool = False,
 ) -> torch.Tensor:
     """
     Get all expert weights stacked into a single tensor.
@@ -322,16 +327,18 @@ def _get_expert_weights(
     Args:
         moe_block: The MoE block
         attrs: Model attributes
+        use_cpu: If True, load weights on CPU to save GPU memory
 
     Returns:
         Stacked expert weights [num_experts, ...]
     """
     experts = moe_block.experts
+    device = "cpu" if use_cpu else experts.gate_up_proj.device if attrs.get("fused", False) else experts[0].gate_proj.weight.device
 
     if attrs.get("fused", False):
         # Fused: gate_up_proj and down_proj
-        gate_up = experts.gate_up_proj  # [E, 2*I, H]
-        down = experts.down_proj  # [E, H, I]
+        gate_up = experts.gate_up_proj.to(device) if device != experts.gate_up_proj.device else experts.gate_up_proj  # [E, 2*I, H]
+        down = experts.down_proj.to(device) if device != experts.down_proj.device else experts.down_proj  # [E, H, I]
 
         num_experts = gate_up.shape[0]
         intermediate_size = down.shape[2]
@@ -356,9 +363,9 @@ def _get_expert_weights(
 
         for i in range(num_experts):
             expert = experts[i]
-            gate = getattr(expert, gate_proj).weight.flatten()
-            up = getattr(expert, up_proj).weight.flatten()
-            down = getattr(expert, down_proj).weight.flatten()
+            gate = getattr(expert, gate_proj).weight.flatten().to(device)
+            up = getattr(expert, up_proj).weight.flatten().to(device)
+            down = getattr(expert, down_proj).weight.flatten().to(device)
             weights.append(torch.cat([gate, up, down]))
 
         return torch.stack(weights, dim=0).unsqueeze(1)  # [E, 1, D]

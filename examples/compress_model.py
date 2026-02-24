@@ -176,6 +176,11 @@ Examples:
         action="store_true",
         help="Store observer statistics on CPU/RAM instead of GPU to avoid OOM (slower but uses less GPU memory)",
     )
+    parser.add_argument(
+        "--cpu-merge",
+        action="store_true",
+        help="Process merge weight operations on CPU/RAM instead of GPU to avoid OOM during merging (slower but uses less GPU memory)",
+    )
 
     # Verification
     parser.add_argument(
@@ -325,6 +330,7 @@ def compress_model(model, observer_data, args):
 
         config = MergeConfig(
             target_ratio=target_ratio,
+            use_cpu_for_weights=args.cpu_merge,
         )
         retained_counts = merge_model(model, observer_data, config)
 
