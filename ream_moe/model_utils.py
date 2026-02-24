@@ -478,25 +478,51 @@ def _verify_model_structure(
     if layers is None or len(layers) == 0:
         return ["Could not find any decoder layers in the model"]
 
-    # Check first layer
-    layer = layers[0]
     moe_block_path = model_attrs.get("moe_block")
     if not moe_block_path:
         return ["MODEL_ATTRS missing 'moe_block' path"]
 
-    # Navigate to MoE block
+    # Find the first layer that actually has MoE (not just layer 0)
+    # Some models like GLM-5 have dense first layers
+    layer = None
     moe_block = None
-    current = layer
-    for attr in moe_block_path.split("."):
-        if hasattr(current, attr):
-            moe_block = getattr(current, attr)
-            current = moe_block
-        else:
-            errors.append(f"Layer 0 missing attribute '{moe_block_path}' (failed at '{attr}')")
-            return errors
+    moe_layer_idx = -1
 
-    if moe_block is None:
-        errors.append(f"Could not find MoE block at path '{moe_block_path}' in layer 0")
+    for idx, candidate_layer in enumerate(layers):
+        # Navigate to MoE block
+        current = candidate_layer
+        block = None
+        for attr in moe_block_path.split("."):
+            if hasattr(current, attr):
+                block = getattr(current, attr)
+                current = block
+            else:
+                block = None
+                break
+
+        if block is not None:
+            # Check if this block actually has MoE (experts attribute)
+            experts_path = model_attrs.get("experts", "")
+            if experts_path:
+                parts = experts_path.split(".")
+                current = block
+                for i, part in enumerate(parts[:-1]) if len(parts) > 1 else []:
+                    if hasattr(current, part):
+                        current = getattr(current, part)
+                    else:
+                        current = None
+                        break
+
+                if current is not None and hasattr(current, parts[-1]):
+                    # Found an MoE layer!
+                    layer = candidate_layer
+                    moe_block = block
+                    moe_layer_idx = idx
+                    logger.info(f"✅ Found MoE layer at index {idx}")
+                    break
+
+    if layer is None or moe_block is None:
+        errors.append(f"Could not find any layer with MoE structure (checked {len(layers)} layers)")
         return errors
 
     logger.info(f"✅ Found MoE block: {moe_block.__class__.__name__}")
